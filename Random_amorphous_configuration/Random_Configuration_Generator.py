@@ -26,127 +26,124 @@ import math
 import os
 import shutil
 from pymatgen.core.periodic_table import Element
+import numpy as np
 
 
-MINIMUM = 1.80
+minimum = 1.80
 
 
-ONES  = 1.00000000
-ZEROS = 0.00000000
+ones  = 1.00000000
+zeros = 0.00000000
 
 
 #seed the random number
 random.seed(time.time())
 
 
-TYPE = input ("Please input total NUMBER of ELEMENTS in the system (integer):   ")
+#------------------------------------------------Taking User inputs-----------------------------
+type_input = input ("Please input total number of elements in the material (integer):   ")
 print("\n")
-TYPE = int(TYPE)
-
-series_count = input ("Please input FOLDER COUNT (integer):   ")
-print("\n")
-series_count = int(series_count)
+type_input = int(type_input)
 
 
-SYM = []
-COUNT = []
+
+element_symbol = []
+element_count = []
 density = 0.0
 
-for i in range(0, TYPE):
-    symbol = input("Please input SYMBOL of element %d:   "%(i+1))
-    elementcount = input ("Please input COUNT of the element %s:   "%symbol)
+for i in range(0, type_input):
+    sym = input("Please input SYMBOL (eg: Si, O, Ga) of element %d:   "%(i+1))
+    count = input ("Please input COUNT of the element %s:   "%sym)
     print("\n")
-    SYM.append(symbol)
-    COUNT.append(int(elementcount))
+    element_symbol.append(sym)
+    element_count.append(int(count))
 
 density = input("Please input Density of the material in g/cc ")
 density = float(density)
-
-MASS = []
-
-for i in range(0, len(SYM)):
-    mass = Element(SYM[i]).atomic_mass
-    MASS.append(float(mass))
+#--------------------------------------------------------------------------------------------------
 
 
+mass = [float(Element(element_symbol[i]).atomic_mass) for i in range(0, len(element_symbol))] #individual atomic mass
+total_mass = sum([element_count[i]*mass[i] for i in range(0, len(element_count))])            # total atomic mass
+volume = total_mass *1.661/(density)   #volume of the system
 
-total_mass = 0.0
-for i in range(0, len(COUNT)):
-    total_mass += COUNT[i]*MASS[i]
-
-Volume = total_mass *1.661/(density)
-
-BOXSIZE = Volume**(1.0/3.0)
-
-
-BOXSIZE = Decimal('%.3f' % (BOXSIZE * 1000 / 1000))
+boxsize = volume**(1.0/3.0)   #dimension of cubic boxsize
+boxsize = round(boxsize, 2)   #rounding off boxsize to 2 floating point values
+total_natoms = sum(element_count)
 
 
-CURRENT_PATH = os.getcwd()
-
-folder_name_string = '/' + 'S'+ str(series_count).zfill(2) + '_lat' + str(BOXSIZE) + '_' + 'd' + str(density)
-
-NEW_FOLDER = CURRENT_PATH + folder_name_string
-
-os.makedirs(NEW_FOLDER)
-os.chdir(NEW_FOLDER)
-
-NATOMS = sum(COUNT)
-
-FINAL_X = []
-FINAL_Y = []
-FINAL_Z = []
+#final coordinates list
+final_x = []
+final_y = []
+final_z = []
 
 
-TEMP_X = []
-TEMP_Y = []
-TEMP_Z = []
 
-
-angle1 = 2.0* math.pi
-angle2 = 4.0 * math.pi
+#angle theta and phi for spherical coordinates
+angle1 = 1.0 * math.pi   #theta
+angle2 = 2.0 * math.pi   # phi
 
 
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
-def CHECK_PBC(x,y,z):
-    value = 0
-    if( x <= float(BOXSIZE) - MINIMUM/2.0 and y <= float(BOXSIZE) - MINIMUM/2.0 and z <= float(BOXSIZE) - MINIMUM/2.0 and x >= MINIMUM/2.0 and y >= MINIMUM/2.0 and z >= MINIMUM/2.0):
-        value = 1
-    return value
+def check_pbc(x,y,z):
+    '''
+    Takes coordinates and checks periodic boundary conditions
+    eg:
+    if minimum = 2.0 and boxsize = 10
+    we want our coordinates between 0 + 1.0 and 10 - 1.0 i.e. 1 and 9
+    such that the minimum distance of 2 is maintained between end elements
+    i.e. 9 and 1 --> 9 to 10: 1 and 10 (0)--> 1
+    '''
+
+    condition1 = minimum/2.0
+    condition2 = boxsize - minimum/2.0
+
+    if (x <= condition1 or y <= condition1 or z <= condition1):
+        return 0
+
+    if (x >= condition2 or y >= condition2 or z >= condition2):
+        return 0
+
+    return 1
 
 
-def CHECK_DISTANCE(x,y,z, Xarray, Yarray, Zarray):
 
-    distance = 0
-    value_raised = 1
+def check_distance(x,y,z, x_list, y_list, z_list):
+    ''' Funtion to check cartesian distance between
+       x ,y , z and previously valid coordinates in the list'''
 
-    DIST = []
-    for j in range(0, len(Xarray)):
-        distance = (Xarray[j] - x)** 2.0 + (Yarray[j] - y)** 2.0 + (Zarray[j] - z)**2.0
+    for j in range(0, len(x_list)):
+        distance = 0
+        distance = (x_list[j] - x)** 2.0 + (y_list[j] - y)** 2.0 + (z_list[j] - z)**2.0
         distance = math.sqrt(distance)
-        DIST.append(distance)
+        if distance <= minimum:
+            return 0
 
-    for elmnts in DIST:
-        if(elmnts < MINIMUM):
-            value_raised = 0
-
-    return value_raised
+    return 1
 
 
-def SHUFFLE_XYZ(Xarray, Yarray, Zarray):
-
-
-    combined = list(zip(Xarray, Yarray, Zarray))
+def shuflle_xyz(x_list, y_list, z_list):
+    '''
+    This functions suffles the ordering of (x_list, y_list, z_list)
+    using the zip function.
+    '''
+    combined = list(zip(x_list, y_list, z_list))
     random.shuffle(combined)
-    Xarray[:], Yarray[:], Zarray[:] = (zip(*combined))
+    x_list[:], y_list[:], z_list[:] = (zip(*combined))
 
-    return Xarray, Yarray, Zarray
+    return x_list, y_list, z_list
 
 
 
-def MAKE_POSCAR(Xarray, Yarray, Zarray, filename):
+def make_poscar(x_list, y_list, z_list, filename):
+
+    '''
+    This function writes the poscar file to the directory
+    after all the coordinates for the atomic configuration has passed
+    the conditions.
+    '''
 
     print("***** WRITING POSCAR FILE****** \n")
 
@@ -155,30 +152,30 @@ def MAKE_POSCAR(Xarray, Yarray, Zarray, filename):
 
     f = open(filename, 'w')
     f.write(" Amorphous ")
-    for t in range(0,len(SYM)):
-        f.write("%2s%d"%(SYM[t],COUNT[t]))
+    for t in range(0,len(element_symbol)):
+        f.write("%2s%d"%(element_symbol[t],element_count[t]))
     f.write(" Density= %f"%(density))
     f.write("\n")
 
 
-    f.write("%8.5f\n"%(ONES))
-    f.write("%8.3f %8.3f %8.3f\n"%(float(BOXSIZE), ZEROS, ZEROS))
-    f.write("%8.3f %8.3f %8.3f\n"%(ZEROS, float(BOXSIZE), ZEROS))
-    f.write("%8.3f %8.3f %8.3f\n"%(ZEROS, ZEROS, float(BOXSIZE)))
+    f.write("%8.5f\n"%(ones))
+    f.write("%8.3f %8.3f %8.3f\n"%(float(boxsize), zeros, zeros))
+    f.write("%8.3f %8.3f %8.3f\n"%(zeros, float(boxsize), zeros))
+    f.write("%8.3f %8.3f %8.3f\n"%(zeros, zeros, float(boxsize)))
 
-    for t in range(0,len(SYM)):
-        f.write("%5s"%(SYM[t]))
+    for t in range(0,len(element_symbol)):
+        f.write("%5s"%(element_symbol[t]))
     f.write("\n")
 
-    for t in range(0,len(SYM)):
-        f.write("%5d"%(COUNT[t]))
+    for t in range(0,len(element_count)):
+        f.write("%5d"%(element_count[t]))
     f.write("\n")
     f.write("Direct\n")
 
-    NATOMS = sum(COUNT)
+    natoms = sum(element_count)
 
-    for q in range(0, NATOMS):
-        f.write("%14.8f %14.8f %14.8f \n"%(FINAL_X[q]/float(BOXSIZE), FINAL_Y[q]/float(BOXSIZE), FINAL_Z[q]/float(BOXSIZE)))
+    for q in range(0, total_natoms):
+        f.write("%14.8f %14.8f %14.8f \n"%(x_list[q]/float(boxsize), y_list[q]/float(boxsize), z_list[q]/float(boxsize)))
 
     f.close()
 
@@ -193,7 +190,7 @@ def MAKE_POSCAR(Xarray, Yarray, Zarray, filename):
 i=0
 x = y = z = 0.0
 
-while(i<NATOMS):
+while(i < total_natoms):
     x = y = z = 0.0
     r0=0.0
 
@@ -208,28 +205,28 @@ while(i<NATOMS):
         while(test==0):
             phi =  angle1* random.random()
             theta = angle2 * random.random()
-            r0 = 25* float(BOXSIZE) * random.random()
+            r0 = 25* float(boxsize) * random.random()
 
             x = r0 * math.cos(phi) * math.sin(theta)
             y = r0 * math.sin(phi) * math.sin(theta)
             z = r0 * math.cos(theta)
 
-            test = CHECK_PBC(x,y,z)
+            test = check_pbc(x,y,z)
 
-        FINAL_X.append(x)
-        FINAL_Y.append(y)
-        FINAL_Z.append(z)
+        final_x.append(x)
+        final_y.append(y)
+        final_z.append(z)
 
     else:
         while(double_test==0):
 
-            if(i<int(NATOMS* 0.60)):
-                r0 = 5.00 * float(BOXSIZE) * random.random()
+            if(i<int(total_natoms* 0.60)):
+                r0 = 5.00 * float(boxsize) * random.random()
                 phi =  angle1* random.random()
                 theta = angle2 * random.random()
 
             else:
-                r0 = 1.5 * float(BOXSIZE) * random.random()
+                r0 = 1.5 * float(boxsize) * random.random()
                 phi = 1.0* angle1* random.random()
                 theta = 1.0* angle2 * random.random()
 
@@ -238,14 +235,14 @@ while(i<NATOMS):
             y = r0 * math.sin(phi) * math.sin(theta)
             z = r0 * math.cos(theta)
 
-            test1 = CHECK_PBC(x,y,z)
-            test2 = CHECK_DISTANCE(x,y,z, FINAL_X, FINAL_Y, FINAL_Z)
+            test1 = check_pbc(x,y,z)
+            test2 = check_distance(x,y,z, final_x, final_y, final_z)
 
             double_test = test1 * test2
 
-        FINAL_X.append(x)
-        FINAL_Y.append(y)
-        FINAL_Z.append(z)
+        final_x.append(x)
+        final_y.append(y)
+        final_z.append(z)
 
     i+=1
 
@@ -254,6 +251,32 @@ while(i<NATOMS):
 
 
 filename='POSCAR'
-MAKE_POSCAR(FINAL_X, FINAL_Y, FINAL_Z, filename)
 
-print('The Random poscar has been created in the folder %s \n'%folder_name_string)
+for ii in range(0, int(total_natoms/5)):
+    final_x, final_y, final_z = shuflle_xyz(final_x, final_y, final_z)
+
+
+make_poscar(final_x, final_y, final_z, filename)
+print('The Random poscar has been created !! \n')
+
+
+#----------------------------------------For Testing--------------------------
+
+
+# atoms_symbol = []
+# atoms_symbol += [[str(element_symbol[i])]*element_count[i] for i in range(0, len(element_count))]
+#
+# total_atoms_symbol = []
+#
+# for x in atoms_symbol:
+#     total_atoms_symbol.extend(x)
+#
+# f = open("XYZ.xyz", 'w')
+# f.write("%3d"%total_natoms)
+# f.write("\n\n")
+# for ii in range(0, len(final_x)):
+#     f.write("%3s %15.5f %15.5f %15.5f"%(total_atoms_symbol[ii], final_x[ii], final_y[ii], final_z[ii]))
+#     if ii != len(final_x)-1:
+#         f.write("\n")
+#
+# f.close()
